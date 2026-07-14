@@ -7,8 +7,7 @@ class sources(core.DefaultSources):
         super(sources, self).__init__(__name__, *args, **kwargs)
 
     def _search_request(self, url, query):
-        query_first_letter = query.decode('utf-8')[0].lower()
-        query = core.quote_plus(query).replace('+', '-').lower()
-        search_url = url.base + url.search % (query_first_letter, query)
+        query_str = core.quote_plus(query)
+        search_url = url.base + url.search % query_str
         headers = { 'Accept': 'text/html' }
         return self._request.get(search_url, headers=headers)

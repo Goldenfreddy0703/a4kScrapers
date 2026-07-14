@@ -142,6 +142,7 @@ def strip_accents(s):
 
 def clean_title(title, broken=None):
     title = title.lower()
+    title = title.replace('$', 's')  # stylised dollar sign (e.g. "$#*! My Dad Says" → "s#*! my dad says")
     title = strip_accents(title)
     title = strip_non_ascii_and_unprintable(title)
 
@@ -367,9 +368,15 @@ def check_episode_title_match(titles, release_title, simple_info):
     return False
 
 def filter_movie_title(org_release_title, release_title, movie_title, simple_info):
-    if simple_info['imdb_id'] is None and org_release_title is not None and simple_info['year'] not in org_release_title:
-        log('movienoyear]: %s' % release_title, 'notice')
-        return False
+    if simple_info['imdb_id'] is None and org_release_title is not None:
+        year = simple_info.get('year', '')
+        if year and year.isdigit():
+            year_variants = {year, str(int(year) - 1), str(int(year) + 1)}
+        else:
+            year_variants = {year}
+        if not any(y in org_release_title for y in year_variants):
+            log('movienoyear]: %s' % release_title, 'notice')
+            return False
 
     if org_release_title is not None and check_episode_number_match(org_release_title):
         log('movieepisode]: %s' % release_title, 'notice')
@@ -423,6 +430,20 @@ def get_filter_single_episode_fn(simple_info):
       season_episode_fill_full_check,
       season_fill_episode_fill_full_check
     ]
+
+    # Add alternative season/episode suffixes for anime cour correction
+    alt_season = simple_info.get('alternative_season', '')
+    alt_episode = simple_info.get('alternative_episode', '')
+    if alt_season and alt_episode:
+        suffixes.extend([
+            's%se%s' % (alt_season, alt_episode),
+            's%se%s' % (alt_season, alt_episode.zfill(2)),
+            's%se%s' % (alt_season.zfill(2), alt_episode.zfill(2)),
+            'season %s episode %s' % (alt_season, alt_episode),
+            'season %s episode %s' % (alt_season, alt_episode.zfill(2)),
+            'season %s episode %s' % (alt_season.zfill(2), alt_episode.zfill(2)),
+        ])
+
     regex_pattern = get_regex_pattern(clean_titles, suffixes)
 
     def filter_fn(release_title):
@@ -467,6 +488,16 @@ def get_filter_season_pack_fn(simple_info):
         clean_titles.append(clean_title_with_simple_info(title, simple_info))
 
     suffixes = [season_check, season_fill_check, season_full_check, season_full_fill_check]
+
+    # Add alternative season for anime cour correction
+    alt_season = simple_info.get('alternative_season', '')
+    if alt_season:
+        alt_fill = alt_season.zfill(2)
+        suffixes.extend([
+            's%s' % alt_season, 's%s' % alt_fill,
+            'season %s' % alt_season, 'season %s' % alt_fill,
+        ])
+
     regex_pattern = get_regex_pattern(clean_titles, suffixes)
 
     def filter_fn(release_title):
@@ -621,3 +652,187 @@ def get_filter_show_pack_fn(simple_info):
         return False
 
     return filter_fn
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Otaku-style anime torrent classifier
+# ═══════════════════════════════════════════════════════════════════════════
+
+def anime_filter_sources(release_title, simple_info, ep_zfill, ss_zfill, abs_zfill=None):
+    """
+    Classify an anime torrent by extracting season, episode, and part/cour
+    information from *release_title* using Otaku Testing's regex approach.
+
+    Returns one of:
+      'single'  — title matches exactly the target episode
+      'season'  — episode range or season pack that contains target episode
+      'show'    — full show pack, OR no detectable metadata (pass-through)
+      None      — confirmed wrong episode / wrong season / wrong part (discard)
+
+    Key behaviours ported from Otaku Testing filter_sources():
+      - Episode range "01-12" accepted as 'season' when target is within range
+      - Part/cour token "Part 2" / "Cour 2" enforced when simple_info carries
+        thetvdb_part
+      - Season 1 leniency: most fansub releases omit "Season 1" — skip the
+        season-mismatch check for season 1 and for TVDB season-0/absolute shows
+      - No detectable metadata → 'show' (pass-through; never discarded)
+
+    :param release_title: torrent title after clean_tags() — dashes preserved,
+                          group tags stripped, NOT fully clean_title()'d
+    :param simple_info:   Seren simple_info dict
+    :param ep_zfill:      zero-padded target episode string, e.g. '03'
+    :param ss_zfill:      zero-padded target season string, e.g. '01'
+    :param abs_zfill:     zero-padded absolute episode number (optional)
+    :return:              'single', 'season', 'show', or None
+    """
+    title = release_title.lower()
+
+    # ── Target values ──────────────────────────────────────────────────────
+    try:
+        req_ep = int(ep_zfill) if ep_zfill else None
+    except (ValueError, TypeError):
+        req_ep = None
+    try:
+        req_season = int(ss_zfill) if ss_zfill else None
+    except (ValueError, TypeError):
+        req_season = None
+    try:
+        req_abs = int(abs_zfill) if abs_zfill else req_ep
+    except (ValueError, TypeError):
+        req_abs = req_ep
+
+    # ── Regexes (ported directly from Otaku Testing filter_sources) ────────
+    _re_season = re.compile(r'(?i)\b(?:s(?:eason)?[ ._-]?(\d{1,2}))(?!\d)')
+    _re_episode = re.compile(r'''(?ix)
+        (?:^|[\s._-])(?:e(?:p)?\s?(\d{1,4}))   # E12, EP12
+        |
+        -\s?(\d{1,4})\b                          # - 12  (fansub dash)
+        |
+        \b(?:episode|ep|e)\s?(\d{1,4})\b         # ep 03
+        |
+        s\d{1,2}e(\d{1,4})                       # s01e07
+        |
+        (\d{1,4})\s+(\d{1,4})                    # two standalone numbers
+    ''')
+    _re_ep_range = re.compile(r'(\d{1,4})\s*[~\-]\s*(\d{1,4})')
+    _re_part     = re.compile(r'(?i)\b(?:part|cour)[ ._-]?(\d+)(?:[&-](\d+))?\b')
+
+    # ── Part / cour extraction ─────────────────────────────────────────────
+    part_matches = _re_part.findall(title)
+    extracted_parts = []
+    for match in part_matches:
+        for grp in match:
+            if grp:
+                try:
+                    extracted_parts.append(int(grp))
+                except ValueError:
+                    pass
+
+    # ── Season extraction ──────────────────────────────────────────────────
+    extracted_seasons = []
+    for s in _re_season.findall(title):
+        try:
+            extracted_seasons.append(int(s))
+        except ValueError:
+            pass
+
+    # ── Episode extraction (remove part tokens from working copy first) ────
+    title_no_parts = _re_part.sub('', title)
+    extracted_episode = None
+    ep_is_range       = False
+    range_start = range_end = None
+
+    # Priority 1: SxxExx — most unambiguous
+    se = re.search(r's\d{1,2}e(\d{1,4})', title_no_parts, re.IGNORECASE)
+    if se:
+        ep_num = int(se.group(1))
+        if ep_num not in extracted_parts:
+            extracted_episode = ep_num
+
+    # Priority 2: explicit batch range "01-12" or "01~12"
+    if extracted_episode is None:
+        rm = _re_ep_range.search(title_no_parts)
+        if rm:
+            start, end = int(rm.group(1)), int(rm.group(2))
+            if (start not in extracted_parts and end not in extracted_parts
+                    and 0 < start < end <= 9999):
+                ep_is_range = True
+                range_start, range_end = start, end
+
+    # Priority 3: generic episode pattern catch-all
+    if extracted_episode is None and not ep_is_range:
+        nums = []
+        for match in _re_episode.findall(title_no_parts):
+            for grp in match:
+                if grp:
+                    try:
+                        n = int(grp)
+                        if n not in extracted_parts:
+                            nums.append(n)
+                    except ValueError:
+                        pass
+        # Drop numbers that duplicate a detected season
+        if extracted_seasons and nums:
+            nums = [n for n in nums if n not in extracted_seasons]
+        if nums:
+            if len(nums) >= 2 and nums[0] < nums[-1]:
+                # Two numbers, ascending — likely a range
+                ep_is_range = True
+                range_start, range_end = nums[0], nums[-1]
+            else:
+                extracted_episode = nums[0]
+
+    # ── No detectable metadata → pass through as potential show/batch pack ─
+    has_info = bool(
+        extracted_episode is not None or ep_is_range
+        or extracted_seasons or extracted_parts
+    )
+    if not has_info:
+        return 'show'
+
+    # ── Part / cour check ──────────────────────────────────────────────────
+    req_part = simple_info.get('thetvdb_part')
+    if extracted_parts and req_part is not None:
+        try:
+            if int(req_part) not in extracted_parts:
+                return None  # Wrong cour — discard
+        except (ValueError, TypeError):
+            pass
+
+    # ── Season check ───────────────────────────────────────────────────────
+    # Leniency: season 1 anime rarely include "Season 1" in their titles —
+    # skipping the check avoids discarding a large portion of valid results.
+    # Also skip for TVDB season-0 / absolute-numbering shows.
+    thetvdb_season = simple_info.get('thetvdb_season')
+    skip_season = (
+        req_season is None
+        or req_season == 1
+        or str(thetvdb_season) in ('0', 'a')
+    )
+    if not skip_season and extracted_seasons:
+        if req_season not in extracted_seasons:
+            return None  # Wrong season — discard
+
+    # ── Episode check ──────────────────────────────────────────────────────
+    targets = {t for t in (req_ep, req_abs) if t is not None}
+
+    if ep_is_range:
+        # Batch pack: accept if the target episode falls within the range
+        try:
+            if any(range_start <= t <= range_end for t in targets):
+                return 'season'
+            return None  # Range exists but doesn't cover our episode
+        except TypeError:
+            return 'season'  # Can't verify — be permissive
+
+    if extracted_episode is not None:
+        if extracted_episode in targets:
+            return 'single'
+        return None  # Confirmed different episode — discard
+
+    # ── Season marker only, no episode number → season pack ───────────────
+    if extracted_seasons:
+        return 'season'
+
+    # ── Part only, no other info → pass through ────────────────────────────
+    return 'show'

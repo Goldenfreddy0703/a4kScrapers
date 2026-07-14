@@ -40,6 +40,9 @@ class sources(core.DefaultSources):
         response = self._request.get(url.base + (url.search % query) + ('&page=%s' % page))
 
         if response.status_code != 200:
+            if page == 1:
+                self._request.exc_msg = ''
+                return None
             return []
 
         try:
@@ -77,6 +80,8 @@ class sources(core.DefaultSources):
 
     def episode(self, simple_info, all_info, **kwargs):
         self._imdb = all_info.get('info', {}).get('tvshow.imdb_id', None)
+        if self._imdb is None:
+            self._imdb = all_info.get('info', {}).get('imdb_id', None)
         if self._imdb is None:
             self._imdb = all_info.get('showInfo', {}).get('ids', {}).get('imdb', None)
         return super(sources, self).episode(simple_info, all_info)

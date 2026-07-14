@@ -103,13 +103,23 @@ class GenericTorrentScraper(object):
         if seeds == '':
             seeds = safe_list_get(re.findall(r'Seed:?.*?(\d+)', row), 0)
         if seeds == '':
-            seeds = safe_list_get(re.findall(r'\n👤 (\d+) ', row), 0)
+            seeds = safe_list_get(re.findall(r'👤\s*(\d+)', row), 0)
         if seeds == '':
             seeds = self._parse_number(row, -2)
         if seeds == 'N/A':
             seeds = '0'
 
         return seeds
+
+    def parse_seeds_multi(self, *fields):
+        """Try multiple text fields and return the first non-zero seed count found."""
+        for field in fields:
+            if not field:
+                continue
+            seeds = self.parse_seeds(str(field))
+            if seeds and seeds != '' and seeds != '0':
+                return seeds
+        return '0'
 
     def soup_filter(self, response):
         response = normalize(response.text)

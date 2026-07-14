@@ -16,6 +16,8 @@ from .urls import trackers, hosters, get_urls, update_urls, deprioritize_url
 from .cache import check_cache_result, get_cache, get_config, set_config
 from .test_utils import test_torrent, test_hoster
 
+_FALLBACK_ON_EMPTY = {'zilean', 'torz', 'torrentsdb', 'bitmagnet', 'dmm'}
+
 def get_scraper(
     soup_filter,
     title_filter,
@@ -290,11 +292,10 @@ class CoreScraper(object):
             else:
                 search_results = self._soup_filter(response)
         except requests.exceptions.RequestException:
-            if self._request.exc_msg:
-                self._deprioritize_url = True
-                return empty_result
             url = self._find_next_url(url)
             if url is None:
+                if self._request.exc_msg:
+                    self._deprioritize_url = True
                 return empty_result
             return self._search_core(query, url)
         except:
@@ -310,6 +311,11 @@ class CoreScraper(object):
                 results.append(SearchResult(el=el, title=title))
             except:
                 continue
+
+        if len(results) == 0 and self.caller_name in _FALLBACK_ON_EMPTY:
+            next_url = self._find_next_url(url)
+            if next_url is not None:
+                return self._search_core(query, next_url)
 
         return (results, url)
 
@@ -431,7 +437,7 @@ class CoreScraper(object):
         if self._url is not None:
             return self._url
 
-        if self.caller_name in ['anirena', 'btdig', 'bt4g', 'btscene', 'glo', 'eztv', 'lime', 'rutor', 'torrentapi', 'torrentz2', 'showrss', 'scenerls', 'piratebay', 'magnetdl', 'mediafusion', 'torrentio', 'torrentioelf']:
+        if self.caller_name in ['anirena', 'eztv', 'torrentz2', 'showrss', 'piratebay', 'magnetdl', 'comet', 'mediafusion', 'meteor', 'torrentio', 'bitmagnet']:
             self._request.skip_head = True
 
         return self._request.find_url(self._urls)
@@ -539,7 +545,7 @@ class CoreScraper(object):
         try:
             use_cache_only = self._get_cache(self.full_query)
             if use_cache_only:
-                return
+                return self._get_movie_results()
 
             self._url = self._find_url()
             if self._url is None:
@@ -576,7 +582,8 @@ class CoreScraper(object):
         finally:
             if self._deprioritize_url:
                 deprioritize_url(self.caller_name)
-            return self._get_movie_results()
+
+        return self._get_movie_results()
 
     def episode_query(self, simple_info, auto_query=True, single_query=False, caller_name=None, query_seasons=True, query_show_packs=True):
         self.start_time = time.time()
@@ -616,6 +623,18 @@ class CoreScraper(object):
         self.season_xx = self.season_x.zfill(2)
         self.episode_xx = self.episode_x.zfill(2)
 
+        # Alternative season/episode for anime cour splits (e.g. Frieren S01E29 → S02E01)
+        self.alt_season_x = simple_info.get('alternative_season', '')
+        self.alt_episode_x = simple_info.get('alternative_episode', '')
+        self.alt_season_xx = self.alt_season_x.zfill(2) if self.alt_season_x else ''
+        self.alt_episode_xx = self.alt_episode_x.zfill(2) if self.alt_episode_x else ''
+
+        # For anime, ensure absolute_number is populated — Trakt often omits it for
+        # single-season shows (e.g. Frieren ep 29 = absolute 29, Trakt skips the field).
+        # Without this, fansub queries like "show - 29" and "show 29" never fire.
+        if simple_info.get('isanime', False) and simple_info.get('absolute_number', None) in (None, ''):
+            simple_info['absolute_number'] = simple_info['episode_number']
+
         try:
             self._url = self._find_url()
             if self._url is None:
@@ -645,6 +664,11 @@ class CoreScraper(object):
                     self._episode(single_episode_query)
                 ]
 
+                # Alternative numbering query (anime cour splits)
+                if self.alt_season_xx and self.alt_episode_xx:
+                    alt_query = self.show_title + ' S%sE%s' % (self.alt_season_xx, self.alt_episode_xx)
+                    queries.insert(0, self._episode(alt_query))
+
                 if single_query or simple_info.get('is_airing', False):
                     wait_threads(queries)
                     return
@@ -654,15 +678,39 @@ class CoreScraper(object):
                         self._pack_and_season(season_query),
                     ]
 
+                    # Also search alt season pack if different
+                    if self.alt_season_xx and self.alt_season_xx != self.season_xx:
+                        queries.append(self._pack_and_season(self.show_title + ' S%s' % self.alt_season_xx))
+
                     if query_show_packs:
                         queries = queries + [
                             self._pack_and_season(self.show_title + ' Season %s' % self.season_x),
                             self._pack_and_season(self.show_title + ' Season'),
                             self._pack_and_season(self.show_title + ' Complete'),
                         ]
+                        # Anime batch patterns (fansub groups use "Batch" keyword)
+                        if simple_info.get('isanime', False):
+                            queries.append(self._pack_and_season(self.show_title + ' Batch'))
 
-                if simple_info.get('isanime', False) and simple_info.get('absolute_number', None) is not None:
-                    queries.insert(0, self._episode(self.show_title + ' %s' % simple_info['absolute_number']))
+                if simple_info.get('isanime', False) and simple_info.get('absolute_number', None) not in (None, ''):
+                    abs_num = simple_info['absolute_number']
+                    abs_num_zfill = abs_num.zfill(2)
+                    # Bare absolute number (e.g. "Frieren 29")
+                    queries.insert(0, self._episode(self.show_title + ' %s' % abs_num))
+                    # Fansub dash convention — quoted to prevent Nyaa interpreting "-" as negation
+                    # e.g. Frieren "- 29" → phrase search matching "[SubsPlease] Frieren - 29"
+                    queries.insert(0, self._episode(self.show_title + ' "- %s"' % abs_num_zfill))
+
+                    # Trakt sometimes provides a wrong absolute_number — OVAs or specials can
+                    # inflate the count so S01E01 gets abs=7 instead of 1. When abs differs
+                    # from episode_number, also fire episode_number-based fansub queries so
+                    # fansub-indexed sites (Nyaa, AnimeTosho) are searched with the number
+                    # they actually use. The title filter accepts whichever matches.
+                    ep_num = self.episode_x
+                    ep_num_zfill = self.episode_xx
+                    if ep_num != abs_num:
+                        queries.insert(0, self._episode(self.show_title + ' %s' % ep_num))
+                        queries.insert(0, self._episode(self.show_title + ' "- %s"' % ep_num_zfill))
 
                 if self._use_thread_for_info:
                     wait_threads([
@@ -673,6 +721,40 @@ class CoreScraper(object):
                     wait_threads(queries)
 
             query_results()
+
+            # Anime alias search: re-run queries with each enriched alias title
+            # (romaji, MAL synonyms, etc.) — mirrors Otaku's (romaji)|(english) dual search.
+            # Only runs when primary results are sparse and aliases are available.
+            if not single_query and simple_info.get('isanime', False) and len(self._results) < 10:
+                # Pre-filter: deduplicate aliases that clean to the same thing as show_title
+                # or each other — English variants often duplicate while romaji sits further
+                # down the list and would get cut off by a naive [:N] slice.
+                show_title_clean = self.show_title.lower()
+                seen_clean = {show_title_clean}
+                unique_aliases = []
+                for alias in simple_info.get('show_aliases', []):
+                    clean_alias = source_utils.clean_title(alias)
+                    if not clean_alias:
+                        continue
+                    clean_lower = clean_alias.lower()
+                    if clean_lower in seen_clean:
+                        continue
+                    seen_clean.add(clean_lower)
+                    unique_aliases.append(clean_alias)
+                    if len(unique_aliases) >= 5:
+                        break
+
+                tools.log('a4kScrapers.%s: anime alias loop — %d results so far, %d unique aliases: %s' % (
+                    self.caller_name, len(self._results), len(unique_aliases), unique_aliases), 'notice')
+                for alias in unique_aliases:
+                    if self._cancellation_token.is_cancellation_requested:
+                        break
+                    original_title = self.show_title
+                    self.show_title = alias
+                    tools.log('a4kScrapers.%s: alias search with "%s"' % (self.caller_name, alias), 'notice')
+                    query_results()
+                    self.show_title = original_title
+
             if not single_query and len(self._results) == 0 and self.show_title_fallback is not None:
                 self.show_title = self.show_title_fallback
                 self.simple_info['show_title'] = self.show_title_fallback
@@ -682,4 +764,5 @@ class CoreScraper(object):
         finally:
             if self._deprioritize_url:
                 deprioritize_url(self.caller_name)
-            return self._get_episode_results()
+
+        return self._get_episode_results()

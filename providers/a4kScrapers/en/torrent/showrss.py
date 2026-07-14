@@ -64,4 +64,5 @@ class sources(core.DefaultSources):
         return []
 
     def episode(self, simple_info, all_info, **kwargs):
-        return super(sources, self).episode(simple_info, all_info, auto_query=False)
+        super(sources, self).episode(simple_info, all_info, auto_query=False)
+        return self.scraper._get_episode_results()

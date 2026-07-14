@@ -8,3 +8,10 @@ class sources(core.DefaultSources):
                                       *args,
                                       request=core.Request(sequental=False, timeout=15),
                                       **kwargs)
+
+    def _search_request(self, url, query):
+        response = super(sources, self)._search_request(url, query)
+        if response is None or response.status_code != 200:
+            self._request.exc_msg = ''
+            return None
+        return response
