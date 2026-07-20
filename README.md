@@ -16,6 +16,10 @@ https://api.github.com/repos/Goldenfreddy0703/a4kScrapers/zipball
 
 No GitHub Pages or build step required — pushing to `master` is the release.
 
+## Developer wiki
+
+Want to build a new scraper? See the **[wiki](https://github.com/Goldenfreddy0703/a4kScrapers/wiki)** for architecture docs, scraper patterns, and contribution guidelines.
+
 ## Scrapers
 
 

@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import html as _html
+import re
 
 from providerModules.a4kScrapers import core
 from bs4 import BeautifulSoup
+
+RE_SEEDERS = re.compile(r'fa-arrow-up[^"]*"></i>\s*<span[^>]*>\s*(\d+)\s*</span>\s*<span>seeders</span>', re.I)
 
 class sources(core.DefaultSources):
     def __init__(self, *args, **kwargs):
@@ -11,16 +14,15 @@ class sources(core.DefaultSources):
 
     def _soup_filter(self, response):
         soup = BeautifulSoup(response.text, 'html.parser')
-        rows = soup.find_all('div', class_=lambda c: c and 'flex' in c and 'items-start' in c)
+        rows = soup.find_all('div', class_=lambda c: c and 'items-start' in c)
         results = []
         for row in rows:
-            torrent = self.genericScraper._parse_torrent(_html.unescape(str(row)), '<div')
+            row_html = _html.unescape(str(row))
+            torrent = self.genericScraper._parse_torrent(row_html, '<div')
             if torrent is None:
                 continue
-            seeds_span = row.find('span', class_=lambda c: c and 'text-green-600' in c)
-            if seeds_span:
-                num_span = seeds_span.find('span', class_=lambda c: c and 'font-medium' in c)
-                if num_span:
-                    torrent.seeds = num_span.get_text(strip=True)
+            seeds_match = RE_SEEDERS.search(row_html)
+            if seeds_match:
+                torrent.seeds = seeds_match.group(1)
             results.append(torrent)
         return results

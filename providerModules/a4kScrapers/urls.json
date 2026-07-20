@@ -1,7 +1,7 @@
 {
   "trackers": {
     "bitsearch": {
-      "search": "/search?q=%s&sort=size&limit=50",
+      "search": "/search?limit=100&q=%s",
       "domains": [
         {
           "base": "https://bitsearch.eu"
@@ -153,7 +153,7 @@
       "search": "/search/index.php?q=%s&search=fast",
       "domains": [
         {
-          "base": "https://knaben.eu"
+          "base": "https://knaben.org"
         }
       ]
     },
@@ -167,9 +167,6 @@
           "base": "https://thekat.info"
         },
         {
-          "base": "https://kickass.cm"
-        },
-        {
           "base": "https://kickasstorrents.id"
         },
         {
@@ -177,6 +174,21 @@
         },
         {
           "base": "https://kkat.net"
+        },
+        {
+          "base": "https://kickasst.net"
+        },
+        {
+          "base": "https://kickasshydra.dev"
+        },
+        {
+          "base": "https://kickasshydra.net"
+        },
+        {
+          "base": "https://kathydra.com"
+        },
+        {
+          "base": "https://kickasstorrents.bz"
         }
       ]
     },
