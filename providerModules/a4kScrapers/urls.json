@@ -339,7 +339,18 @@
       "search": "/search?q=%s&qx=1&s=downloads&o=desc",
       "domains": [
         {
+          "base": "https://animetosho.net"
+        },
+        {
           "base": "https://animetosho.org"
+        }
+      ]
+    },
+    "tsukihime": {
+      "search": "/v1/search/torrents?q=%s&limit=100",
+      "domains": [
+        {
+          "base": "https://api.tsukihime.org"
         }
       ]
     }
