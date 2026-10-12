@@ -91,6 +91,9 @@
       "search": "/api/v2/list_movies.json?query_term=%s",
       "domains": [
         {
+          "base": "https://movies-api.accel.li"
+        },
+        {
           "base": "https://yts.bz"
         },
         {
