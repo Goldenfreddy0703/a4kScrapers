@@ -45,6 +45,29 @@ def _get_secret():
     return a, i
 
 
+# DMM replaced the locally-computed token with a server-issued challenge: GET /api/challenge
+# returns {"token": ..., "hash": ...}, used as dmmProblemKey/solution.  The web client reuses
+# one for 2 minutes; do the same.  The old local algorithm is kept only as a fallback.
+_challenge = {'token': None, 'hash': None, 'expires': 0}
+_CHALLENGE_TTL = 100
+
+
+def _get_challenge(request, base):
+    now = time.time()
+    if _challenge['token'] and now < _challenge['expires']:
+        return _challenge['token'], _challenge['hash']
+    try:
+        response = request.get(base + '/api/challenge')
+        if response is not None and response.status_code == 200:
+            data = core.json.loads(response.text)
+            if data.get('token') and data.get('hash'):
+                _challenge.update(token=data['token'], hash=data['hash'], expires=now + _CHALLENGE_TTL)
+                return data['token'], data['hash']
+    except Exception:
+        pass
+    return _get_secret()
+
+
 class sources(core.DefaultSources):
     def __init__(self, *args, **kwargs):
         super(sources, self).__init__(__name__, *args, single_query=True, **kwargs)
@@ -89,7 +112,7 @@ class sources(core.DefaultSources):
                     if not season_results:
                         break  # page 0 was empty — nothing to page through
                     time.sleep(2)  # wider gap to stay under Cloudflare rate limit
-                dmm_key, solution = _get_secret()
+                dmm_key, solution = _get_challenge(self._request, url.base)
                 if self.is_movie_query():
                     api_path = '/api/torrents/movie?imdbId=%s&page=%s' % (imdb, page)
                 else:
@@ -118,7 +141,7 @@ class sources(core.DefaultSources):
         return response
 
     def _title_filter(self, el):
-        return el.get('title', '')
+        return el.get('title') or ''  # DMM sometimes returns title: null
 
     def _info(self, el, url, torrent):
         torrent['hash'] = el.get('hash', '').upper()
