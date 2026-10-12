@@ -37,25 +37,7 @@
       "cat_episode": "TV",
       "domains": [
         {
-          "base": "https://1337xx.to"
-        },
-        {
-          "base": "https://1337x.to"
-        },
-        {
-          "base": "https://1337x.st"
-        },
-        {
-          "base": "https://x1337x.ws"
-        },
-        {
-          "base": "https://x1337x.eu"
-        },
-        {
-          "base": "https://x1337x.se"
-        },
-        {
-          "base": "https://x1337x.cc"
+          "base": "https://www.1337xx.to"
         }
       ]
     },
