@@ -11,15 +11,14 @@ class sources(core.DefaultSources):
     def _search_request(self, url, query):
         if not query:
             return []
-        query = core.quote_plus(query)
-        if self.is_movie_query():
-            search_path = '/usearch/%s%%20category:movies/?field=size&sorder=desc' % query
-        else:
-            search_path = '/usearch/%s%%20category:tv/?field=size&sorder=desc' % query
+        # The site no longer returns rows for the "category:movies|tv" suffix (empty page), and
+        # the page number belongs in the path, before the query string.  Movie/TV filtering is
+        # done by the a4k title filters, so a plain query is enough.
+        query = core.quote_plus(query).replace('+', '%20')
         any_success = False
         results = []
-        for page_suffix in ['', '/2/']:
-            request_url = url.base + search_path + page_suffix
+        for page_path in ['', '2/']:
+            request_url = url.base + '/usearch/%s/%s?field=size&sorder=desc' % (query, page_path)
             response = self._request.get(request_url)
             if response.status_code != 200:
                 continue

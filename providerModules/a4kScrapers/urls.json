@@ -222,6 +222,9 @@
       "cat_episode": "tv",
       "domains": [
         {
+          "base": "https://thekat.info"
+        },
+        {
           "base": "https://kickass.id"
         },
         {
@@ -241,9 +244,6 @@
         },
         {
           "base": "https://kat.li"
-        },
-        {
-          "base": "https://thekat.info"
         },
         {
           "base": "https://kickass.cm"
