@@ -306,11 +306,11 @@
         }
       ]
     },
-    "torrentz2": {
-      "search": "/search?q=%s&sort=seeders",
+    "torrentscsv": {
+      "search": "/service/search?q=%s&size=50",
       "domains": [
         {
-          "base": "https://torrentz2.nz"
+          "base": "https://torrents-csv.com"
         }
       ]
     },
