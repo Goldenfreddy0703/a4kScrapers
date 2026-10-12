@@ -18,8 +18,12 @@ import time as _time
 
 from providerModules.a4kScrapers import core
 
-_BASE_URL = 'https://animetosho.org'
-_SEARCH   = '/search'
+# animetosho.org froze updates on 2026-05-09 and its feed/storage server shuts down
+# in Oct 2026.  animetosho.net ("Anime Tosho NEW", also reached via animetosho.xyz)
+# is a live mirror with the same search page and markup, so try it first and fall
+# back to .org only when .net fails to answer.
+_BASE_URLS = ('https://animetosho.net', 'https://animetosho.org')
+_SEARCH    = '/search'
 
 # ── Throttle: max 3 concurrent requests to avoid rate-limiting ────────────
 _MAX_CONCURRENT = 3
@@ -92,14 +96,19 @@ def _fetch(request, query, anidb_id=None, sort='downloads'):
         params_str += '&s=%s&o=desc' % sort
     if anidb_id:
         params_str += '&aids=%s' % str(anidb_id)
-    url = _BASE_URL + _SEARCH + '?' + params_str
-
-    try:
-        resp = request.get(url)
-        if resp.status_code != 200:
-            return []
-        html = resp.text
-    except Exception:
+    html = None
+    for base in _BASE_URLS:
+        try:
+            resp = request.get(base + _SEARCH + '?' + params_str)
+            if resp is None or resp.status_code != 200:
+                continue
+            if 'id="content"' not in resp.text:
+                continue
+            html = resp.text
+            break
+        except Exception:
+            continue
+    if html is None:
         return []
 
     # ── BeautifulSoup parser (replaces fragile regex) ─────────────────────
