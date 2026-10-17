@@ -37,25 +37,7 @@
       "cat_episode": "TV",
       "domains": [
         {
-          "base": "https://1337xx.to"
-        },
-        {
-          "base": "https://1337x.to"
-        },
-        {
-          "base": "https://1337x.st"
-        },
-        {
-          "base": "https://x1337x.ws"
-        },
-        {
-          "base": "https://x1337x.eu"
-        },
-        {
-          "base": "https://x1337x.se"
-        },
-        {
-          "base": "https://x1337x.cc"
+          "base": "https://www.1337xx.to"
         }
       ]
     },
@@ -90,6 +72,9 @@
     "yts": {
       "search": "/api/v2/list_movies.json?query_term=%s",
       "domains": [
+        {
+          "base": "https://movies-api.accel.li"
+        },
         {
           "base": "https://yts.bz"
         },
@@ -222,6 +207,9 @@
       "cat_episode": "tv",
       "domains": [
         {
+          "base": "https://thekat.info"
+        },
+        {
           "base": "https://kickass.id"
         },
         {
@@ -241,9 +229,6 @@
         },
         {
           "base": "https://kat.li"
-        },
-        {
-          "base": "https://thekat.info"
         },
         {
           "base": "https://kickass.cm"
@@ -266,10 +251,10 @@
       "search": "/search/?q=%s&m=1",
       "domains": [
         {
-          "base": "https://magnetdl.app"
+          "base": "https://magnetdl.co"
         },
         {
-          "base": "https://magnetdl.co"
+          "base": "https://magnetdl.app"
         }
       ]
     },
@@ -278,14 +263,6 @@
       "domains": [
         {
           "base": "https://showrss.info"
-        }
-      ]
-    },
-    "torrentdownload": {
-      "search": "/search?q=%s",
-      "domains": [
-        {
-          "base": "https://www.torrentdownload.info"
         }
       ]
     },
@@ -306,11 +283,11 @@
         }
       ]
     },
-    "torrentz2": {
-      "search": "/search?q=%s&sort=seeders",
+    "torrentscsv": {
+      "search": "/service/search?q=%s&size=50",
       "domains": [
         {
-          "base": "https://torrentz2.nz"
+          "base": "https://torrents-csv.com"
         }
       ]
     },
@@ -327,19 +304,22 @@
         }
       ]
     },
-    "anirena": {
-      "search": "/?q=%s&s=seeders&o=desc",
-      "domains": [
-        {
-          "base": "https://www.anirena.com"
-        }
-      ]
-    },
     "animetosho": {
       "search": "/search?q=%s&qx=1&s=downloads&o=desc",
       "domains": [
         {
+          "base": "https://animetosho.net"
+        },
+        {
           "base": "https://animetosho.org"
+        }
+      ]
+    },
+    "tsukihime": {
+      "search": "/v1/search/torrents?q=%s&limit=100",
+      "domains": [
+        {
+          "base": "https://api.tsukihime.org"
         }
       ]
     }
