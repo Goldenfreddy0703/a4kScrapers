@@ -31,16 +31,6 @@
         }
       ]
     },
-    "leet": {
-      "search": "/sort-category-search/%s/{{category}}/seeders/desc/1/",
-      "cat_movie": "Movies",
-      "cat_episode": "TV",
-      "domains": [
-        {
-          "base": "https://www.1337xx.to"
-        }
-      ]
-    },
     "nyaa": {
       "search": "/?f=0&c=1_0&q=%s",
       "domains": [
@@ -288,6 +278,42 @@
       "domains": [
         {
           "base": "https://torrents-csv.com"
+        }
+      ]
+    },
+    "torrentfunk": {
+      "search": "/api/search.json?limit=100&sort=seeds&category={{category}}&q=%s",
+      "cat_movie": "1",
+      "cat_episode": "3",
+      "domains": [
+        {
+          "base": "https://www.torrentfunk.com"
+        }
+      ]
+    },
+    "torrentgalaxy": {
+      "search": "/get-posts/format:json:keywords:%s",
+      "domains": [
+        {
+          "base": "https://torrentgalaxy.one"
+        }
+      ]
+    },
+    "torlock": {
+      "search": "/torznab/api?t={{category}}&q=%s",
+      "cat_movie": "movie",
+      "cat_episode": "tvsearch",
+      "domains": [
+        {
+          "base": "https://www.torlock.com"
+        }
+      ]
+    },
+    "torrentdownload": {
+      "search": "/search?q=%s",
+      "domains": [
+        {
+          "base": "https://www.torrentdownload.info"
         }
       ]
     },
